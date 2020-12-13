@@ -1,0 +1,125 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Parameters:
+  Subnet1:
+    Type: String
+
+  Subnet2:
+    Type: String
+
+  ALB:
+    Type: String
+
+  Cluster:
+    Type: String
+
+  DesiredCount:
+    Type: Number
+    Default: 2
+
+  LaunchType:
+    Type: String
+    Default: Fargate
+    AllowedValues:
+      - Fargate
+      - EC2
+
+  TargetGroup:
+    Type: String
+
+  SecurityGroup:
+    Type: String
+
+
+Conditions:
+  Fargate: !Equals [ !Ref LaunchType, "Fargate" ]
+
+  EC2: !Equals [ !Ref LaunchType, "EC2" ]
+
+Resources:
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AWS::StackName}
+
+  FargateService:
+    Type: AWS::ECS::Service
+    Condition: Fargate
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: !Ref DesiredCount
+      HealthCheckGracePeriodSeconds: 30
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref SecurityGroup
+          Subnets:
+            - !Ref Subnet1
+            - !Ref Subnet2
+      LoadBalancers:
+        - ContainerName: name
+          ContainerPort: 8082
+          TargetGroupArn: !Ref TargetGroup
+
+  EC2Service:
+    Type: AWS::ECS::Service
+    Condition: EC2
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: EC2
+      LoadBalancers:
+        - ContainerName: name
+          ContainerPort: 8082
+          TargetGroupArn: !Ref TargetGroup
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-name
+      RequiresCompatibilities:
+        - !If [ Fargate, "FARGATE", "EC2" ]
+      Memory: 1GB
+      Cpu: 512
+      NetworkMode: !If [ Fargate, "awsvpc", "bridge" ]
+      ExecutionRoleArn: !Ref TaskExecutionRole
+      ContainerDefinitions:
+        - Name: name
+          Image: arungupta/name
+          Essential: true
+          MemoryReservation: 500
+          Cpu: 10
+          PortMappings:
+            - ContainerPort: 8082
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: !Ref AWS::StackName
+
+
+Outputs:
+  Service:
+    Value: !If [ Fargate, !Ref FargateService, !Ref EC2Service ]

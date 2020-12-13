@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Code Pipeline to Create Docker Image for Webapp Service
+Parameters:
+  ServiceName:
+    Type: String
+    AllowedValues:
+      - webapp
+  GitHubSetting:
+    Type: String
+    Default: "USE-DEFAULT"
+    AllowedValues:
+      - "USE-DEFAULT"
+      - "OVERRIDE"
+    Description: GitHub setting (USE-DEFAULT or OVERRIDE)
+  GitHubRepo:
+    Type: String
+    Default: "microservices-webapp"
+    Description: GitHub  Repo
+  GitHubUser:
+    Type: String
+    Default: "virtmerlin"
+    Description: GitHub repo owner
+  GitHubBranch:
+    Type: String
+    Default: "master"
+    Description: GitHub repo branch
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: GutHub personal access token
+Mappings:
+  ServiceToRepo:
+    greeting:
+      Repo: microservices-webapp
+      Owner: virtmerlin
+      Branch: master
+
+Conditions:
+  OverrideDefaultRepo: !Equals [ !Ref GitHubSetting, "OVERRIDE" ]
+
+Resources:
+
+  DeploymentPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://microservices-pipeline-cfn.s3.amazonaws.com/microservice-webapp/deployment-pipeline-webapp.yaml
+      Parameters:
+        Service: !Ref ServiceName
+        ECRRepoName: !Ref AWS::StackName
+        GitHubUser: !Ref GitHubUser
+        GitHubToken: !Ref GitHubToken
+        GitHubRepo: !Ref GitHubRepo
+        GitHubBranch: !Ref GitHubBranch

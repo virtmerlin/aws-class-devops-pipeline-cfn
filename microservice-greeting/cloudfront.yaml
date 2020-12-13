@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Static website hosting with S3 and CloudFront'
+
+Parameters:
+  OriginURL:
+    Type: String
+    Default: "URL for the API Gateway for Greeting Service"
+
+
+Resources:
+
+  # Configure CloudFront
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        CustomErrorResponses:
+          - ErrorCode: 403 # not found
+            ResponseCode: 404
+            ResponsePagePath: '/index.html'
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          DefaultTTL: 3600 # in seconds
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: false
+          MaxTTL: 86400 # in seconds
+          MinTTL: 60 # in seconds
+          TargetOriginId: !Ref OriginURL
+          ViewerProtocolPolicy: 'allow-all'
+        # This DefaultRootObject configuration is not enough.
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - DomainName: !Ref OriginURL
+            Id: !Ref OriginURL
+            OriginPath: '/prod'
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: 'https-only'
+        PriceClass: 'PriceClass_All'
+
+
+Outputs:
+
+  DistributionId:
+    Description: 'CloudFront Distribution ID'
+    Value: !Ref CloudFrontDistribution
+  Domain:
+    Description: 'Cloudfront Domain'
+    Value: !GetAtt CloudFrontDistribution.DomainName
